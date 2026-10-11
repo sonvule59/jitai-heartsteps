@@ -1,0 +1,22 @@
+# Cloned public data repo, fetched separately -- not part of this project.
+# Source: github.com/klasnja/HeartStepsV1 @ 3016391 (CC BY 4.0)
+HeartStepsV1/
+
+*.pyc
+*.ipynb
+*.csv
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+*.xlsm
+*.xlsb
+*.xlsm
+*.xlsb
+
+# Python virtual environment (479 MB -- never commit)
+heartsteps/
+__pycache__/
+
+# Editor / IDE settings (machine-specific paths)
+.vscode/
