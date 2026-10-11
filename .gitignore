@@ -1,6 +1,6 @@
-# Cloned public data repo, fetched separately -- not part of this project.
-# Source: github.com/klasnja/HeartStepsV1 @ 3016391 (CC BY 4.0)
-HeartStepsV1/
+# Cloned public data repo (github.com/klasnja/HeartStepsV1): keep LICENSE and
+# README for provenance; the surveys and the 31 MB of CSVs stay out.
+HeartStepsV1/surveys/
 
 *.pyc
 *.ipynb
@@ -17,6 +17,4 @@ HeartStepsV1/
 # Python virtual environment (479 MB -- never commit)
 heartsteps/
 __pycache__/
-
-# Editor / IDE settings (machine-specific paths)
 .vscode/
