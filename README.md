@@ -1,8 +1,11 @@
-# HeartSteps V1 — causal excursion effects of activity suggestions
+# HeartSteps V1 — predicting receptivity to activity suggestions
 
-Reanalysis of the HeartSteps V1 micro-randomized trial (MRT), estimating the
-proximal causal effect of sending a contextually tailored activity suggestion on
-the subsequent 30-minute step count.
+Reanalysis of the HeartSteps V1 micro-randomized trial (MRT).
+
+**Main question:** can receptivity to activity suggestions be predicted from
+context, and does baseline self-efficacy moderate it? *Receptivity* is the causal
+excursion effect of sending a suggestion on the Jawbone step count in the 30
+minutes that follow.
 
 The estimator is **weighted and centered least squares (WCLS)** — Boruvka,
 Almirall, Witkiewitz & Murphy (2018) — written out in explicit matrix algebra in
@@ -13,11 +16,17 @@ every term of the sandwich variance is inspectable.
 
 | Step | Description | State |
 | --- | --- | --- |
-| 1 | Reproduce the published primary effect | **done** — matches Klasnja et al. (2019) |
-| 2 | Jawbone vs. Google Fit sensor comparison, differential coverage by arm | not started |
-| 3 | Moderation by study day, decision slot, notification burden | partial (study day only) |
+| 0 | Reproduce the published primary effect (estimator check) | **done** — matches Klasnja et al. (2019) |
+| 1 | Inventory pre-decision context and baseline self-efficacy | **done** — [`context_inventory.py`](context_inventory.py) |
+| 2 | Moderation by each context variable, one at a time | not started |
+| 3 | Moderation by baseline self-efficacy (between-person, n = 37, exploratory) | not started |
+| 4 | Leave-one-participant-out prediction — only if step 2 shows real heterogeneity | not started |
+| — | Google Fit as a sensitivity check on the final results | not started |
 
-### Step 1 result
+Jawbone is the primary step measure throughout; Google Fit is a sensitivity check
+only.
+
+### Step 0 result: the estimator reproduces the paper
 
 `wcls_primary.py` reproduces every effect size the published abstract reports:
 
@@ -32,6 +41,50 @@ every term of the sandwich variance is inspectable.
 
 The effect decays with time on study: +66% on day 0, +12.7% by day 21, and
 negative thereafter (interaction *p* = .005).
+
+The same estimator and inference are used for every moderation model below.
+
+### Step 1 result: what can moderate receptivity
+
+A moderator must be measured at or before the decision point. `context_inventory.py`
+classifies every column of `suggestions.csv` on that rule using an empirical test:
+a column that is never observed when no suggestion was sent cannot pre-date the
+send decision. Counts are over the 6,061 available decision points.
+
+**Baseline self-efficacy exists:** `selfeff.intake` (users.csv), complete for all
+37 participants, the exact sum of five 1–5 items (`selfeff.tired.intake`,
+`selfeff.badmood.intake`, `selfeff.notime.intake`, `selfeff.vaca.intake`,
+`selfeff.precip.intake`). Range 8–21, mean 14.5, SD 3.31. `selfeff.exit` (n = 35)
+is post-intervention and is not a baseline moderator.
+
+**Usable context moderators:**
+
+| Category | Column | Observed | Note |
+| --- | --- | --- | --- |
+| Decision slot | `sugg.select.slot` | 100% | 1–5, clean. `sugg.decision.slot` has 16 zeros and 3 sixes from timezone glitches |
+| Prior activity | `jbsteps30pre` | 91.1% | also 40- and 60-minute pre-windows |
+| Weather | `dec.temperature` | 98.9% | 26 rows hold a `-1024` sentinel (see notes) |
+| | `dec.weather.condition` | 99.6% | 19 levels; needs collapsing |
+| | `dec.windspeed`, `dec.precipitation.chance` | 100% | strings because of an `'unknown'` sentinel; coerce to numeric |
+| Location | `dec.location.category` | 100% | 168 raw Google Places strings; only `home` (1,676) and `work` (979) are clean |
+| Habituation | `study.day.nogap` | 100% | 0–41 |
+| Other | `sugg.device.since`, `is.prefetch` | 73.3%, 100% | hours since phone use; prefetch flag |
+
+**Requested but not available as a column:**
+
+- *Activity-recognition state.* `recognized.activity` is 95.7% `STILL` and 4.3%
+  `UNKNOWN`, with no walking or vehicle level, so it cannot moderate. Prior
+  activity is measured by `jbsteps30pre` instead.
+- *Recent notification burden.* No column; must be built from lagged `send`.
+- *A 3-level location.* The home / work / other collapse must be built from
+  `dec.location.category`.
+
+**Excluded:** the whole `response.*` block (16 columns, including
+`response.temperature` and `response.location.category`) is observed 0% of the
+time when no suggestion was sent, so it is post-treatment. The `tag.*` columns
+describe the suggestion content and are likewise post-treatment. `connect`,
+`snooze.status` and `intransit` are constant among available points because
+`avail` is defined from them. `dec.snow` is 98.3% zeros.
 
 ## Data
 
@@ -77,13 +130,19 @@ Hekler, Ambuj Tewari, Lisa Jackson, Shawna Smith, Andy Lee and Nick Seewald
 Python 3.9.6, with `pandas` 2.3.3, `numpy` 2.0.2, `scipy` 1.13.1.
 
 ```bash
-python wcls_primary.py
+python wcls_primary.py       # estimator + reproduction of the published effect
+python context_inventory.py  # moderator inventory and data-quality checks
+python hs_dataload.py        # descriptive Jawbone vs Google Fit comparison
 ```
 
-Prints the analysis-sample construction, both models, a sensitivity table over
-every preprocessing choice, and the side-by-side comparison with the publication.
-The script asserts its own reconstruction of `study.day.nogap` against the
-dataset's ground truth and fails loudly if it drifts.
+`wcls_primary.py` prints the analysis-sample construction, both models, a
+sensitivity table over every preprocessing choice, and the side-by-side
+comparison with the publication. It asserts its own reconstruction of
+`study.day.nogap` against the dataset's ground truth and fails loudly if it
+drifts. The other two scripts reuse its analysis frame.
+
+`hs_dataload.py` is descriptive only: its sent-minus-not-sent differences are raw
+means, not causal effects.
 
 ## Specification provenance
 
@@ -112,7 +171,7 @@ matters: dropping the correction moves *p* from .060 to .052.
 
 ## Notes on the data
 
-Four findings that cost real debugging time, recorded so they don't have to be
+Findings that cost real debugging time, recorded so they don't have to be
 rediscovered:
 
 1. **Neither step file contains a single zero.** The minimum is 1 step, and there
@@ -135,6 +194,23 @@ rediscovered:
    collinear with `send`, so filtering on it leaves no comparison group; it is
    also set at unavailable points, because randomization ran everywhere while
    delivery was gated on availability.
+5. **Weather fields carry out-of-range sentinels.** `dec.temperature` has 26 rows
+   equal to `-1024` on top of 64 NaN; used raw, the sentinel inflates its SD from
+   10.4 to 68.9 °C. `dec.snow` has 29 rows equal to `-1`. `dec.windspeed` and
+   `dec.precipitation.chance` hold the string `'unknown'` instead of NaN.
+6. **`response.*` columns look like context but are post-treatment.** They are
+   recorded when the participant responds to a notification, so they exist only
+   when one was sent.
+
+### Sensor comparison
+
+On the correct 30-minute window, among the 3,239 decision points recorded by both
+sensors, Jawbone averages 250.6 steps and Google Fit 133.4 (ratio 1.88),
+correlation 0.600. The raw sent-minus-not-sent difference is +6.5 steps by
+Jawbone and +7.1 by Google Fit. An earlier version of `hs_dataload.py` reported
++19.6 versus +33.0 because it summed over the whole inter-decision gap (note 2);
+on correct windows that gap essentially disappears. Coverage does not differ by
+arm (Jawbone 0.909 vs 0.909; Google Fit 0.581 vs 0.576).
 
 ### Missing step data
 
